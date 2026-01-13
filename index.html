@@ -16,7 +16,9 @@
     <div class="sniper-container">
         <header>
             <div class="logo">
-                <span class="crosshair-icon">⌖</span> SNIPER TRADER PRO
+                <a href="https://www.snipertrader.pro/" target="_blank" style="text-decoration: none; color: inherit;">
+                    <span class="crosshair-icon">⌖</span> SNIPER TRADER PRO
+                </a>
             </div>
             <div class="header-right">
                 <div class="ticker">
@@ -36,8 +38,19 @@
                 <input type="file" id="chartInput" accept="image/*" hidden>
                 <div class="upload-content">
                     <span class="upload-icon">⬆</span>
-                    <h2>UPLOAD XAUUSD CHART</h2>
+                    <h2>UPLOAD CHART</h2>
                     <p>Drag & Drop or Click to Analyze</p>
+                    <div class="or-divider">- OR -</div>
+                    <button id="open-camera-btn" class="camera-btn">📷 OPEN CAMERA</button>
+                </div>
+            </div>
+
+            <div id="camera-modal" class="modal hidden">
+                <div class="camera-container">
+                    <video id="camera-feed" autoplay playsinline></video>
+                    <canvas id="camera-canvas" hidden></canvas>
+                    <button id="capture-btn" class="capture-btn"></button>
+                    <button id="close-camera-btn" class="close-camera">✕</button>
                 </div>
             </div>
 
@@ -92,7 +105,7 @@
         </main>
 
         <footer>
-            <p>AI Powered Market Sniper v1.0</p>
+            <p>Sheikh Rasel Robin SystemV1.6</p>
         </footer>
         <div id="settings-modal" class="modal hidden">
             <div class="modal-content">

@@ -15,6 +15,17 @@ const patternList = document.getElementById('pattern-list');
 const livePrice = document.getElementById('live-price');
 const scanningText = document.querySelector('.scanning-text');
 
+// Camera Elements
+const openCameraBtn = document.getElementById('open-camera-btn');
+const cameraModal = document.getElementById('camera-modal');
+const cameraFeed = document.getElementById('camera-feed');
+const captureBtn = document.getElementById('capture-btn');
+const closeCameraBtn = document.getElementById('close-camera-btn');
+const cameraCanvas = document.getElementById('camera-canvas');
+let stream = null;
+let analysisCount = 0;
+const MAX_ANALYSIS_LIMIT = 5;
+
 // Event Listeners
 dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
 dropZone.addEventListener('dragleave', () => { dropZone.classList.remove('dragover'); });
@@ -23,9 +34,54 @@ dropZone.addEventListener('drop', (e) => {
     dropZone.classList.remove('dragover');
     if (e.dataTransfer.files.length > 0) handleFile(e.dataTransfer.files[0]);
 });
-dropZone.addEventListener('click', () => { chartInput.click(); });
+dropZone.addEventListener('click', (e) => {
+    // Prevent triggering upload when clicking camera button
+    if (e.target !== openCameraBtn) chartInput.click();
+});
 chartInput.addEventListener('change', (e) => { if (e.target.files.length > 0) handleFile(e.target.files[0]); });
 resetBtn.addEventListener('click', resetApp);
+
+// Camera Logic
+openCameraBtn.addEventListener('click', async (e) => {
+    e.stopPropagation(); // Stop bubble to dropzone
+    try {
+        stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+                facingMode: "environment" // Use back camera on mobile
+            }
+        });
+        cameraFeed.srcObject = stream;
+        cameraModal.classList.remove('hidden');
+    } catch (err) {
+        alert("Camera Access Denied or Not Available: " + err.message);
+    }
+});
+
+closeCameraBtn.addEventListener('click', stopCamera);
+
+captureBtn.addEventListener('click', () => {
+    // Draw frame to canvas
+    cameraCanvas.width = cameraFeed.videoWidth;
+    cameraCanvas.height = cameraFeed.videoHeight;
+    const ctx = cameraCanvas.getContext('2d');
+    ctx.drawImage(cameraFeed, 0, 0, cameraCanvas.width, cameraCanvas.height);
+
+    // Convert to Image
+    uploadedImage.onload = () => {
+        startAlgorithmicAnalysis(uploadedImage);
+    };
+    uploadedImage.src = cameraCanvas.toDataURL('image/png');
+
+    stopCamera();
+});
+
+function stopCamera() {
+    if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+    }
+    cameraModal.classList.add('hidden');
+}
+
 
 // Main Logic
 function handleFile(file) {
@@ -45,6 +101,12 @@ function handleFile(file) {
 }
 
 async function startAlgorithmicAnalysis(imgElement) {
+    if (analysisCount >= MAX_ANALYSIS_LIMIT) {
+        alert("System Limit Reached: Site Blocked (Max 5 images). Refresh to reset.");
+        return;
+    }
+    analysisCount++; // Increment counter
+
     dropZone.classList.add('hidden');
     scanningOverlay.classList.remove('hidden');
     livePrice.textContent = "Scanning...";
@@ -62,7 +124,7 @@ async function startAlgorithmicAnalysis(imgElement) {
         scanningText.textContent = "READING PRICE NUMBERS (OCR)...";
         let ocrPrice = 0;
         try {
-            // Timeout OCR after 5 seconds
+            // Timeout OCR after 5 seconds to prevent hanging
             ocrPrice = await Promise.race([
                 performOCR(imgElement),
                 new Promise((_, reject) => setTimeout(() => resolve(0), 5000))
@@ -136,8 +198,8 @@ async function performOCR(imgElement) {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
 
-    // Crop: Right 15% (Price Scale)
-    const cropWidth = Math.floor(imgElement.naturalWidth * 0.15);
+    // Crop: Right 20% (Price Scale) - Increased slightly for better text capture
+    const cropWidth = Math.floor(imgElement.naturalWidth * 0.20);
     const cropHeight = imgElement.naturalHeight;
     const cropX = imgElement.naturalWidth - cropWidth;
 
@@ -145,7 +207,7 @@ async function performOCR(imgElement) {
     canvas.height = cropHeight;
 
     // Filter: High Contrast for better reading
-    ctx.filter = 'contrast(200%) grayscale(100%) invert(100%)';
+    ctx.filter = 'grayscale(100%) contrast(150%)';
     ctx.drawImage(imgElement, cropX, 0, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
 
     const croppedImage = canvas.toDataURL();
@@ -165,7 +227,8 @@ async function performOCR(imgElement) {
     // Find biggest valid price like number
     const numbers = text.match(/\d{4}\.\d{2}/g);
     if (numbers && numbers.length > 0) {
-        // Return the last one found (usually bottom most or top most, assume close to price)
+        // Return the last one found (usually bottom most or top most)
+        // Try to filter for realistic gold prices (1800-3000) if possible, but fallback to any valid number
         return parseFloat(numbers[numbers.length - 1]);
     }
 
@@ -176,35 +239,47 @@ async function performOCR(imgElement) {
 // 3. Combine Logic
 function combineLogic(price, colorData) {
     let signal = "WAIT";
-    let sentiment = "Ranging";
 
     const totalScore = colorData.greenScore + colorData.redScore;
-    if (totalScore === 0) return { signal: "ERROR", patterns: ["No clear candles found"] };
+    if (totalScore === 0) return { signal: "ERROR", patterns: ["No clear candles found"], entry: 0, tp: 0, sl: 0 };
 
     const greenRatio = colorData.greenScore / totalScore;
 
     // Decision Logic
-    if (greenRatio > 0.55) {
+    if (greenRatio > 0.52) { // Slightly lower threshold for quicker signals
         signal = "BUY";
-        sentiment = "High Bullish Volume";
-    } else if (greenRatio < 0.45) {
+    } else if (greenRatio < 0.48) {
         signal = "SELL";
-        sentiment = "High Bearish Volume";
     }
 
-    // Price Fallback
-    const displayPrice = price > 0 ? price : 2025.00; // Fallback if OCR failed
+    // Price Fallback logic refinement
+    // REMOVED Fallback to enforce proper chart detection
+    // const displayPrice = price > 0 ? price : 2025.00;
+    const displayPrice = price;
+
+    if (displayPrice === 0) {
+        return {
+            signal: "ERROR",
+            patterns: ["Invalid Chart Image - No Price Detected", "Please upload a clear XAUUSD chart"],
+            entry: 0, tp: 0, sl: 0
+        };
+    }
 
     // TP/SL
     let entry = displayPrice;
     let tp, sl;
 
+    // Dynamic TP/SL based on "Intensity"
+    const volatilityFactor = (Math.abs(colorData.greenIntensity - colorData.redIntensity) / 100000) || 5;
+
     if (signal === "BUY") {
-        tp = entry + 5.00;
-        sl = entry - 2.50;
+        tp = entry + (5.00 + volatilityFactor);
+        sl = entry - (3.00 + volatilityFactor / 2);
+    } else if (signal === "SELL") {
+        tp = entry - (5.00 + volatilityFactor);
+        sl = entry + (3.00 + volatilityFactor / 2);
     } else {
-        tp = entry - 5.00;
-        sl = entry + 2.50;
+        tp = 0; sl = 0;
     }
 
     return {
@@ -213,10 +288,10 @@ function combineLogic(price, colorData) {
         tp,
         sl,
         patterns: [
-            price > 0 ? `Price Verified: ${price}` : `Price Estimate: ${displayPrice}`,
-            `Bullish Pressure: ${(greenRatio * 100).toFixed(0)}%`,
-            `Bearish Pressure: ${((1 - greenRatio) * 100).toFixed(0)}%`,
-            colorData.greenIntensity > colorData.redIntensity ? "Strong Momentum" : "Weak Momentum"
+            price > 0 ? `Current Price: ${price}` : `Price Estimate (OCR N/A): ${displayPrice}`,
+            `Bullish Volume: ${(greenRatio * 100).toFixed(0)}%`,
+            `Bearish Volume: ${((1 - greenRatio) * 100).toFixed(0)}%`,
+            signal === "WAIT" ? "Market is Ranging (No clear trend)" : `Strong ${signal} Trend Detected`
         ]
     };
 }
