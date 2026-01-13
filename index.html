@@ -13,6 +13,20 @@
 </head>
 
 <body>
+    <div id="license-lock-overlay" class="license-lock-overlay">
+        <div class="lock-card">
+            <span class="lock-icon">🔒</span>
+            <h2>SYSTEM LOCKED</h2>
+            <p>Sniper Trader Pro License Required</p>
+            <input type="text" id="main-activation-code" placeholder="ENTER ACTIVATION CODE">
+            <button id="main-activate-btn" class="active-lock-btn">ACTIVATE NOW</button>
+            <div class="device-fingerprint">DEVICE ID: <span id="display-device-id">----</span></div>
+        </div>
+    </div>
+    <div class="security-overlay" id="security-overlay">
+        <h1>SECURITY ALERT</h1>
+        <p>SCREEN CAPTURE DETECTED OR WINDOW UNFOCUSED</p>
+    </div>
     <div class="sniper-container">
         <header>
             <div class="logo">
@@ -22,6 +36,7 @@
             </div>
             <div class="header-right">
                 <div class="ticker">
+                    <span id="scan-limit-info" class="limit-badge">Scans Remaining: 2</span>
                     XAUUSD: <span id="live-price" class="neon-text">--.--</span>
                 </div>
                 <!-- AI Settings Removed -->
@@ -114,11 +129,18 @@
                     <span class="close-modal">&times;</span>
                 </div>
                 <div class="modal-body">
+                    <label for="activation-code">License Activation Code:</label>
+                    <input type="text" id="activation-code" placeholder="Enter SNIPER-PRO-XXXX code...">
+                    <button id="activate-license-btn" class="retry-btn full-width" style="margin-top: 10px;">VALIDATE
+                        LICENSE</button>
+
+                    <hr style="margin: 20px 0; border: 0; border-top: 1px solid var(--border-color);">
+
                     <label for="api-key">Gemini API Key (Required for Vision):</label>
                     <input type="password" id="api-key" placeholder="Enter your Google Gemini API Key here...">
                     <p class="crypto-note">Your key is stored locally in your browser.</p>
                 </div>
-                <button id="save-api-key" class="retry-btn full-width">ACTIVATE SYSTEM</button>
+                <button id="save-api-key" class="retry-btn full-width">SAVE SETTINGS</button>
             </div>
         </div>
     </div>
